@@ -86,7 +86,7 @@ function askClaude(text, continueSession, onChunk) {
 // ---------------------------------------------------------------------------
 // Slack
 // ---------------------------------------------------------------------------
-const app = new App({ token: SLACK_BOT_TOKEN, appToken: SLACK_APP_TOKEN, socketMode: true, logLevel: 'warn' });
+const app = new App({ token: SLACK_BOT_TOKEN, appToken: SLACK_APP_TOKEN, socketMode: true, logLevel: 'info' });
 let DM_CHANNEL = null;
 const histories = new Map();  // for SDK mode
 const sessions = new Set();   // for subprocess --continue
@@ -101,16 +101,20 @@ async function handleMessage(message, client) {
   const text = message.text && message.text.trim();
   if (!text) return;
 
-  const threadTs = message.thread_ts || message.ts;
+  // Validate Slack timestamps — must be 'digits.digits' format
+  const isValidTs = (ts) => ts && /^\d+\.\d+$/.test(ts);
+  const sessionKey = (isValidTs(message.thread_ts) ? message.thread_ts : null) || message.channel;
+  const replyThread = (isValidTs(message.thread_ts) ? message.thread_ts : null) || (isValidTs(message.ts) ? message.ts : null);
+  console.log('msg ts=%s thread_ts=%s replyThread=%s', message.ts, message.thread_ts, replyThread);
   const chan = DM_CHANNEL || message.channel;
 
   if (/^reset\b/i.test(text)) {
-    histories.delete(threadTs); sessions.delete(threadTs);
-    await client.chat.postMessage({ channel: chan, thread_ts: threadTs, text: 'Reset.' });
+    histories.delete(sessionKey); sessions.delete(sessionKey);
+    await client.chat.postMessage({ channel: chan, thread_ts: replyThread, text: 'Reset.' });
     return;
   }
 
-  const posted = await client.chat.postMessage({ channel: chan, thread_ts: threadTs, text: '_..._' })
+  const posted = await client.chat.postMessage({ channel: chan, thread_ts: replyThread, text: '_..._' })
     .catch(function(e) { console.log('post err:', e.message); return null; });
   if (!posted) return;
 
@@ -125,18 +129,18 @@ async function handleMessage(message, client) {
   try {
     let result, meta;
     if (USE_SDK) {
-      const history = histories.get(threadTs) || [];
+      const history = histories.get(sessionKey) || [];
       const out = await askSDK(text, history, liveUpdate);
       result = out.result;
       history.push({ role: 'user', content: text }, { role: 'assistant', content: result });
       if (history.length > 20) history.splice(0, 2);
-      histories.set(threadTs, history);
+      histories.set(sessionKey, history);
       const elapsed = Date.now()-t0;
       meta = '\n\n_' + fmtMs(elapsed) + ' $' + out.cost.toFixed(4) + ' · reply to continue · reset_';
     } else {
-      const isContinue = sessions.has(threadTs);
+      const isContinue = sessions.has(sessionKey);
       const out = await askClaude(text, isContinue, liveUpdate);
-      sessions.add(threadTs);
+      sessions.add(sessionKey);
       result = out.result;
       const costStr = out.costUsd ? ' $'+out.costUsd.toFixed(4) : '';
       meta = '\n\n_' + fmtMs(out.durationMs) + costStr + ' · reply to continue · reset_';
@@ -150,6 +154,7 @@ async function handleMessage(message, client) {
   }
 }
 
+app.event('message', ({ event }) => { console.log('RAW', event.channel_type, event.user, event.ts, event.subtype||''); });
 app.message(function({ message, client }) {
   handleMessage(message, client).catch(function(e) { console.log('err:', e.message); });
 });
