@@ -103,7 +103,7 @@ async function handleMessage(message, client) {
 
   // Validate Slack timestamps — must be 'digits.digits' format
   const isValidTs = (ts) => ts && /^\d+\.\d+$/.test(ts);
-  const sessionKey = (isValidTs(message.thread_ts) ? message.thread_ts : null) || message.channel;
+  const sessionKey = message.channel; // always use channel — one shared history for the DM
   const replyThread = (isValidTs(message.thread_ts) ? message.thread_ts : null) || (isValidTs(message.ts) ? message.ts : null);
   console.log('msg ts=%s thread_ts=%s replyThread=%s', message.ts, message.thread_ts, replyThread);
   const chan = DM_CHANNEL || message.channel;
