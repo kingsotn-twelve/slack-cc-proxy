@@ -1,0 +1,10 @@
+{
+  "name": "slack-cc-proxy",
+  "version": "2.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@slack/bolt": "^3.21.1",
+    "dotenv": "^16.4.5"
+  }
+}
