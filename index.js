@@ -94,7 +94,7 @@ const sessions = new Set();   // for subprocess --continue
 function fmtMs(ms) { return ms < 60000 ? (ms/1000).toFixed(1)+'s' : Math.floor(ms/60000)+'m'+Math.floor((ms%60000)/1000)+'s'; }
 function trim(t, max) { max=max||3800; return t.length<=max?t:'...'+t.slice(-(max-3)); }
 
-app.message(async function({ message, client }) {
+async function handleMessage(message, client) {
   if (message.channel_type !== 'im') return;
   if (message.user !== ALLOWED_USER) return;
   if (message.subtype) return;
@@ -148,6 +148,10 @@ app.message(async function({ message, client }) {
     await client.chat.update({ channel: chan, ts: posted.ts, text: 'Error: '+err.message }).catch(function(){});
     await client.reactions.add({ channel: chan, timestamp: message.ts, name: 'x' }).catch(function(){});
   }
+}
+
+app.message(function({ message, client }) {
+  handleMessage(message, client).catch(function(e) { console.log('err:', e.message); });
 });
 
 (async function() {
